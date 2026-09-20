@@ -1,46 +1,76 @@
 /*
- * ESP32 Hebrew Birthday Message Display - Smooth Vertical Scrolling Engine
- * 
+ * ESP32 Hebrew Birthday Message Display - Premium Gift Edition 🎁
+ *
  * Hardware Wiring:
  * -------------------------------------------------------------
  * Component          ESP32 Pin       Description
  * -------------------------------------------------------------
- * Push Button        GPIO 25         Toggle page (Terminal 2 to GND)
- * SSD1306 OLED SDA   GPIO 27         I2C Data Line
- * SSD1306 OLED SCL   GPIO 33         I2C Clock Line
- * VCC                3.3V / 5V       Power
- * GND                GND             Common Ground
+ * Push Button        GPIO 25         Toggle page / Hold 3s for Melody (Terminal
+ * 2 to GND) Passive Buzzer     GPIO 26         Plays Happy Birthday Melody
+ * (Positive to GPIO 26, Negative to GND) SSD1306 OLED SDA   GPIO 27         I2C
+ * Data Line SSD1306 OLED SCL   GPIO 33         I2C Clock Line VCC 3.3V / 5V
+ * Power Supply GND                GND             Common Ground
  * -------------------------------------------------------------
+ *
+ * Features:
+ * - Hold Push Button for 3 seconds to play the Happy Birthday Song Melody!
+ * - Short press toggles to the next Hebrew blessing
+ * - Festive Opening Splash Animation with Birthday Cake & Sparkles
+ * - Smooth Vertical Scrolling Engine for long Hebrew blessings
+ * - Auto-Sleep Mode (Desk Companion): Dim & Sleep after 3 min of inactivity
  */
 
 #include <Arduino.h>
-#include <Wire.h>
-#include <U8g2lib.h>
 #include <LittleFS.h>
-#include <vector>
+#include <U8g2lib.h>
+#include <Wire.h>
 #include <algorithm>
+#include <vector>
 
 // --- Pin Definitions ---
-#define BUTTON_PIN    25
-#define OLED_SDA_PIN  27
-#define OLED_SCL_PIN  33
+#define BUTTON_PIN 25
+#define BUZZER_PIN 26 // Passive Buzzer connected to GPIO 26
+#define OLED_SDA_PIN 27
+#define OLED_SCL_PIN 33
 
-// --- Scroll Speed & Timing Configuration (EDIT THESE VALUES TO CHANGE SPEED) ---
-#define SCROLL_SPEED     0.8f  // Scrolling speed in pixels/frame (Higher = Faster. e.g. 0.4f=slow, 0.8f=medium, 1.2f=fast)
-#define PAUSE_TOP_MS     2200  // Pause duration at the top of a blessing (in milliseconds)
-#define PAUSE_BOTTOM_MS  2800  // Pause duration at the bottom of a blessing (in milliseconds)
-#define DEBOUNCE_DELAY_MS 200  // 200 ms button debounce
+// --- Scroll Speed & Timing Configuration ---
+#define SCROLL_SPEED 0.9f    // Scrolling speed in pixels/frame
+#define PAUSE_TOP_MS 2000    // Pause at top of blessing (ms)
+#define PAUSE_BOTTOM_MS 2800 // Pause at bottom of blessing (ms)
+#define DEBOUNCE_DELAY_MS 50 // Button debounce (ms)
+#define LONG_PRESS_MS 3000   // Hold button for 3 seconds to trigger melody
+#define AUTO_SLEEP_TIMEOUT_MS                                                  \
+  (3 * 60 * 1000) // 3 minutes of inactivity -> Sleep Mode
+
+// --- Musical Notes for Happy Birthday Song ---
+#define NOTE_C4 262
+#define NOTE_D4 294
+#define NOTE_E4 330
+#define NOTE_F4 349
+#define NOTE_G4 392
+#define NOTE_A4 440
+#define NOTE_B4 494
+#define NOTE_C5 523
+#define NOTE_D5 587
+#define NOTE_E5 659
+#define NOTE_F5 698
+#define NOTE_G5 784
 
 // --- U8g2 OLED Initialization (Hardware I2C) ---
-U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
+U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/U8X8_PIN_NONE);
 
 // --- Dynamic Blessings List ---
 std::vector<String> birthdayMessages;
 
 // --- Navigation & State Variables ---
 int currentPage = 0;
-unsigned long lastButtonPressTime = 0;
+unsigned long lastActivityTime = 0;
+unsigned long buttonPressStartTime = 0;
 bool lastButtonState = HIGH;
+bool isButtonPressed = false;
+bool longPressTriggered = false;
+bool isSleeping = false;
+bool isStartupSplash = true;
 
 // --- Smooth Vertical Scrolling State ---
 float scrollY = 0.0f;
@@ -59,9 +89,8 @@ void resetScrollPosition() {
 
 /**
  * @brief Reverses UTF-8 Hebrew text so it renders correctly Right-to-Left (RTL)
- *        on Left-to-Right (LTR) OLED displays.
  */
-String fixHebrewRTL(const String& input) {
+String fixHebrewRTL(const String &input) {
   std::vector<String> glyphs;
   int len = input.length();
   int i = 0;
@@ -112,6 +141,111 @@ String fixHebrewRTL(const String& input) {
 }
 
 /**
+ * @brief Renders Musical Screen while melody is playing
+ */
+void renderMusicScreen() {
+  u8g2.clearBuffer();
+  u8g2.drawRFrame(0, 0, 128, 64, 4);
+
+  u8g2.setFont(u8g2_font_6x10_tf);
+  const char *musicTitle = "* MUSIC MODE *";
+  int musicTitleWidth = u8g2.getStrWidth(musicTitle);
+  u8g2.drawStr((128 - musicTitleWidth) / 2, 16, musicTitle);
+
+  u8g2.setFont(u8g2_font_cu12_t_hebrew);
+  String musicText = fixHebrewRTL("יום הולדת שמח! 🎂");
+  int w = u8g2.getUTF8Width(musicText.c_str());
+  u8g2.drawUTF8((128 - w) / 2, 42, musicText.c_str());
+
+  u8g2.sendBuffer();
+}
+
+/**
+ * @brief Plays the Happy Birthday Melody on Buzzer (GPIO 26)
+ */
+void playHappyBirthdayMelody() {
+#ifdef BUZZER_PIN
+  renderMusicScreen();
+
+  int melody[] = {NOTE_G4, NOTE_G4, NOTE_A4, NOTE_G4, NOTE_C5, NOTE_B4, NOTE_G4,
+                  NOTE_G4, NOTE_A4, NOTE_G4, NOTE_D5, NOTE_C5, NOTE_G4, NOTE_G4,
+                  NOTE_G5, NOTE_E5, NOTE_C5, NOTE_B4, NOTE_A4, NOTE_F5, NOTE_F5,
+                  NOTE_E5, NOTE_C5, NOTE_D5, NOTE_C5};
+
+  int durations[] = {4, 4, 2, 2, 2, 1, 4, 4, 2, 2, 2, 1, 4,
+                     4, 2, 2, 2, 2, 1, 4, 4, 2, 2, 2, 1};
+
+  int totalNotes = sizeof(melody) / sizeof(melody[0]);
+  for (int i = 0; i < totalNotes; i++) {
+    int noteDuration = 1000 / durations[i];
+    tone(BUZZER_PIN, melody[i], noteDuration);
+    int pauseBetweenNotes = noteDuration * 1.30;
+    delay(pauseBetweenNotes);
+    noTone(BUZZER_PIN);
+  }
+#endif
+}
+
+/**
+ * @brief Renders the festive Birthday Cake Splash Screen
+ */
+void renderStartupSplash() {
+  u8g2.clearBuffer();
+
+  u8g2.drawRFrame(0, 0, 128, 64, 4);
+
+  // Centered Header Title
+  u8g2.setFont(u8g2_font_6x10_tf);
+  const char *titleText = "* HAPPY BIRTHDAY *";
+  int titleWidth = u8g2.getStrWidth(titleText);
+  u8g2.drawStr((128 - titleWidth) / 2, 14, titleText);
+
+  u8g2.drawBox(48, 38, 32, 12);
+  u8g2.drawRFrame(52, 30, 24, 9, 1);
+
+  u8g2.drawVLine(56, 24, 6);
+  u8g2.drawVLine(64, 23, 7);
+  u8g2.drawVLine(72, 24, 6);
+
+  if ((millis() / 250) % 2 == 0) {
+    u8g2.drawDisc(56, 22, 1);
+    u8g2.drawDisc(64, 21, 1);
+    u8g2.drawDisc(72, 22, 1);
+  } else {
+    u8g2.drawPixel(56, 22);
+    u8g2.drawDisc(64, 20, 1);
+    u8g2.drawPixel(72, 22);
+  }
+
+  u8g2.setFont(u8g2_font_cu12_t_hebrew);
+  String welcomeText = fixHebrewRTL("לחצי על הכפתור 💖");
+  int w = u8g2.getUTF8Width(welcomeText.c_str());
+  u8g2.drawUTF8((128 - w) / 2, 60, welcomeText.c_str());
+
+  u8g2.sendBuffer();
+}
+
+/**
+ * @brief Renders bedtime farewell animation before sleep
+ */
+void renderBedtimeSleep() {
+  u8g2.clearBuffer();
+  u8g2.drawRFrame(0, 0, 128, 64, 4);
+
+  u8g2.setFont(u8g2_font_cu12_t_hebrew);
+  String sleepText = fixHebrewRTL("לילה טוב");
+  int w = u8g2.getUTF8Width(sleepText.c_str());
+  u8g2.drawUTF8((128 - w) / 2, 36, sleepText.c_str());
+
+  u8g2.sendBuffer();
+  delay(2000);
+
+  u8g2.clearBuffer();
+  u8g2.sendBuffer();
+  u8g2.setPowerSave(1);
+}
+
+/**
  * @brief Loads blessing text files from LittleFS filesystem (/Blessings folder)
  */
 void loadBlessingsFromLittleFS() {
@@ -120,7 +254,8 @@ void loadBlessingsFromLittleFS() {
   if (!LittleFS.begin(true)) {
     Serial.println("[LittleFS] Error mounting LittleFS filesystem!");
   } else {
-    Serial.println("[LittleFS] LittleFS mounted successfully. Reading /Blessings...");
+    Serial.println(
+        "[LittleFS] LittleFS mounted successfully. Reading /Blessings...");
 
     struct BlessingItem {
       String filename;
@@ -128,8 +263,8 @@ void loadBlessingsFromLittleFS() {
     };
     std::vector<BlessingItem> items;
 
-    const char* targetDirs[] = {"/Blessings", "/data/Blessings", "/"};
-    for (const char* dirPath : targetDirs) {
+    const char *targetDirs[] = {"/Blessings", "/data/Blessings", "/"};
+    for (const char *dirPath : targetDirs) {
       File dir = LittleFS.open(dirPath);
       if (dir && dir.isDirectory()) {
         File file = dir.openNextFile();
@@ -141,44 +276,42 @@ void loadBlessingsFromLittleFS() {
             content.trim();
             if (content.length() > 0) {
               items.push_back({fname, content});
-              Serial.printf("[LittleFS] Loaded (%s): %s\n", fname.c_str(), content.c_str());
+              Serial.printf("[LittleFS] Loaded (%s): %s\n", fname.c_str(),
+                            content.c_str());
             }
           }
           file = dir.openNextFile();
         }
         dir.close();
       }
-      if (!items.empty()) break;
+      if (!items.empty())
+        break;
     }
 
-    // Sort files alphabetically (bless1.txt, bless2.txt, etc.)
-    std::sort(items.begin(), items.end(), [](const BlessingItem& a, const BlessingItem& b) {
-      return a.filename < b.filename;
-    });
+    std::sort(items.begin(), items.end(),
+              [](const BlessingItem &a, const BlessingItem &b) {
+                return a.filename < b.filename;
+              });
 
-    for (const auto& item : items) {
+    for (const auto &item : items) {
       birthdayMessages.push_back(item.content);
     }
   }
 
-  // Fallback to default blessings if LittleFS is empty
   if (birthdayMessages.empty()) {
-    Serial.println("[LittleFS] No files found in LittleFS. Using fallbacks:");
     birthdayMessages.push_back("יום הולדת שמח");
     birthdayMessages.push_back("מזל טוב עד 120!");
     birthdayMessages.push_back("בריאות, אושר ושמחה!");
     birthdayMessages.push_back("הגשמת כל החלומות!");
   }
-
-  Serial.printf("Total blessings loaded: %d\n", (int)birthdayMessages.size());
 }
 
 /**
- * @brief Splits a full blessing text (including newlines) into display-wrapped lines
+ * @brief Splits full blessing text into display-wrapped lines
  */
-std::vector<String> prepareBlessingLines(const String& fullText) {
+std::vector<String> prepareBlessingLines(const String &fullText) {
   std::vector<String> lines;
-  
+
   int paragraphStart = 0;
   int newlineIdx = fullText.indexOf('\n');
 
@@ -196,9 +329,9 @@ std::vector<String> prepareBlessingLines(const String& fullText) {
 
   int maxLineWidth = 118;
 
-  for (const String& para : paragraphs) {
+  for (const String &para : paragraphs) {
     if (para.length() == 0) {
-      lines.push_back(""); // Empty line for spacing
+      lines.push_back("");
       continue;
     }
 
@@ -208,28 +341,33 @@ std::vector<String> prepareBlessingLines(const String& fullText) {
     while (spaceIdx != -1) {
       String w = para.substring(wordStart, spaceIdx);
       w.trim();
-      if (w.length() > 0) words.push_back(w);
+      if (w.length() > 0)
+        words.push_back(w);
       wordStart = spaceIdx + 1;
       spaceIdx = para.indexOf(' ', wordStart);
     }
     String lastW = para.substring(wordStart);
     lastW.trim();
-    if (lastW.length() > 0) words.push_back(lastW);
+    if (lastW.length() > 0)
+      words.push_back(lastW);
 
     String currentLine = "";
-    for (const String& word : words) {
-      String testLine = (currentLine.length() == 0) ? word : currentLine + " " + word;
+    for (const String &word : words) {
+      String testLine =
+          (currentLine.length() == 0) ? word : currentLine + " " + word;
       String rtlTest = fixHebrewRTL(testLine);
       int width = u8g2.getUTF8Width(rtlTest.c_str());
 
       if (width <= maxLineWidth) {
         currentLine = testLine;
       } else {
-        if (currentLine.length() > 0) lines.push_back(currentLine);
+        if (currentLine.length() > 0)
+          lines.push_back(currentLine);
         currentLine = word;
       }
     }
-    if (currentLine.length() > 0) lines.push_back(currentLine);
+    if (currentLine.length() > 0)
+      lines.push_back(currentLine);
   }
 
   return lines;
@@ -241,7 +379,8 @@ std::vector<String> prepareBlessingLines(const String& fullText) {
 void updateScrollAnimation(int totalContentHeight, int viewportHeight) {
   unsigned long now = millis();
   int maxScroll = totalContentHeight - viewportHeight + 6;
-  if (maxScroll < 0) maxScroll = 0;
+  if (maxScroll < 0)
+    maxScroll = 0;
 
   if (maxScroll == 0) {
     scrollY = 0.0f;
@@ -249,38 +388,38 @@ void updateScrollAnimation(int totalContentHeight, int viewportHeight) {
   }
 
   switch (scrollState) {
-    case PAUSE_TOP:
-      scrollY = 0.0f;
-      if (now - scrollTimer >= PAUSE_TOP_MS) {
-        scrollState = SCROLLING_DOWN;
-      }
-      break;
+  case PAUSE_TOP:
+    scrollY = 0.0f;
+    if (now - scrollTimer >= PAUSE_TOP_MS) {
+      scrollState = SCROLLING_DOWN;
+    }
+    break;
 
-    case SCROLLING_DOWN:
-      scrollY += SCROLL_SPEED;
-      if (scrollY >= maxScroll) {
-        scrollY = (float)maxScroll;
-        scrollState = PAUSE_BOTTOM;
-        scrollTimer = now;
-      }
-      break;
-
-    case PAUSE_BOTTOM:
+  case SCROLLING_DOWN:
+    scrollY += SCROLL_SPEED;
+    if (scrollY >= maxScroll) {
       scrollY = (float)maxScroll;
-      if (now - scrollTimer >= PAUSE_BOTTOM_MS) {
-        scrollState = RESETTING;
-        scrollTimer = now;
-      }
-      break;
+      scrollState = PAUSE_BOTTOM;
+      scrollTimer = now;
+    }
+    break;
 
-    case RESETTING:
-      scrollY -= 1.5f; // Faster reset scroll back to top
-      if (scrollY <= 0.0f) {
-        scrollY = 0.0f;
-        scrollState = PAUSE_TOP;
-        scrollTimer = now;
-      }
-      break;
+  case PAUSE_BOTTOM:
+    scrollY = (float)maxScroll;
+    if (now - scrollTimer >= PAUSE_BOTTOM_MS) {
+      scrollState = RESETTING;
+      scrollTimer = now;
+    }
+    break;
+
+  case RESETTING:
+    scrollY -= 1.5f;
+    if (scrollY <= 0.0f) {
+      scrollY = 0.0f;
+      scrollState = PAUSE_TOP;
+      scrollTimer = now;
+    }
+    break;
   }
 }
 
@@ -293,7 +432,6 @@ void drawFrame(int page, int totalPages) {
   u8g2.drawPixel(5, 58);
   u8g2.drawPixel(122, 58);
 
-  // Page Indicator Dots at bottom
   if (totalPages > 0) {
     int totalWidth = (totalPages * 6);
     int startX = (128 - totalWidth) / 2;
@@ -308,7 +446,8 @@ void drawFrame(int page, int totalPages) {
 }
 
 void renderPage(int page) {
-  if (birthdayMessages.empty()) return;
+  if (birthdayMessages.empty())
+    return;
   int totalPages = (int)birthdayMessages.size();
   page = page % totalPages;
 
@@ -319,25 +458,20 @@ void renderPage(int page) {
   u8g2.setFont(u8g2_font_cu12_t_hebrew);
   u8g2.setFontDirection(0);
 
-  // Prepare wrapped lines for the current blessing
   std::vector<String> lines = prepareBlessingLines(birthdayMessages[page]);
-  
+
   int lineHeight = 14;
   int totalContentHeight = (int)lines.size() * lineHeight;
-  int viewportHeight = 44; // Available height inside box
+  int viewportHeight = 44;
 
-  // Update smooth vertical scroll animation position
   updateScrollAnimation(totalContentHeight, viewportHeight);
 
-  // Calculate vertical offset
   int startY = 22 - (int)scrollY;
 
-  // Center vertically if content fits completely on screen without scrolling
   if (totalContentHeight <= viewportHeight) {
     startY = 32 - (totalContentHeight / 2) + 10;
   }
 
-  // Draw lines visible within the viewport (Y=12 to Y=55)
   for (size_t i = 0; i < lines.size(); i++) {
     int currentY = startY + ((int)i * lineHeight);
 
@@ -346,7 +480,8 @@ void renderPage(int page) {
         String rtlLine = fixHebrewRTL(lines[i]);
         int lineWidth = u8g2.getUTF8Width(rtlLine.c_str());
         int lineX = (128 - lineWidth) / 2;
-        if (lineX < 4) lineX = 4;
+        if (lineX < 4)
+          lineX = 4;
         u8g2.drawUTF8(lineX, currentY, rtlLine.c_str());
       }
     }
@@ -360,6 +495,10 @@ void setup() {
   Serial.println("ESP32 Hebrew Birthday Display Initializing...");
 
   pinMode(BUTTON_PIN, INPUT_PULLUP);
+#ifdef BUZZER_PIN
+  pinMode(BUZZER_PIN, OUTPUT);
+#endif
+
   Wire.begin(OLED_SDA_PIN, OLED_SCL_PIN);
 
   u8g2.begin();
@@ -368,35 +507,90 @@ void setup() {
   loadBlessingsFromLittleFS();
 
   resetScrollPosition();
-  renderPage(currentPage);
+  lastActivityTime = millis();
 }
 
 void loop() {
   unsigned long currentMillis = millis();
-  int totalPages = (int)birthdayMessages.size();
-  if (totalPages == 0) return;
 
-  // --- Push Button Handling (GPIO 25) ---
+  // --- Auto-Sleep Check (3 minutes of inactivity) ---
+  if (!isSleeping &&
+      (currentMillis - lastActivityTime >= AUTO_SLEEP_TIMEOUT_MS)) {
+    Serial.println("Entering Auto-Sleep Mode...");
+    renderBedtimeSleep();
+    isSleeping = true;
+  }
+
+  // --- Push Button Handling (Short Click & 3-Second Hold) ---
   bool currentButtonState = digitalRead(BUTTON_PIN);
-  
-  // Active LOW button press detection
+
+  // Button Press Down (Active LOW)
   if (lastButtonState == HIGH && currentButtonState == LOW) {
-    if (currentMillis - lastButtonPressTime > DEBOUNCE_DELAY_MS) {
-      lastButtonPressTime = currentMillis;
-      
-      // Switch to Next Page ONLY on button press
-      currentPage = (currentPage + 1) % totalPages;
-      Serial.print("Button Pressed! Page switched to: ");
-      Serial.println(currentPage);
-      
-      // Reset vertical scroll animation to top of new blessing
-      resetScrollPosition();
+    buttonPressStartTime = currentMillis;
+    isButtonPressed = true;
+    longPressTriggered = false;
+  }
+
+  // Button Being Held Down
+  if (isButtonPressed && currentButtonState == LOW) {
+    if (!longPressTriggered &&
+        (currentMillis - buttonPressStartTime >= LONG_PRESS_MS)) {
+      longPressTriggered = true;
+      lastActivityTime = currentMillis;
+      Serial.println(
+          "Long Press (3s) Detected! Playing Happy Birthday Melody...");
+
+      if (isSleeping) {
+        isSleeping = false;
+        u8g2.setPowerSave(0);
+      }
+
+      playHappyBirthdayMelody();
+
+      lastActivityTime = millis();
     }
   }
+
+  // Button Release (LOW to HIGH)
+  if (lastButtonState == LOW && currentButtonState == HIGH) {
+    isButtonPressed = false;
+
+    if (!longPressTriggered &&
+        (currentMillis - buttonPressStartTime > DEBOUNCE_DELAY_MS)) {
+      lastActivityTime = currentMillis;
+
+      if (isSleeping) {
+        isSleeping = false;
+        u8g2.setPowerSave(0);
+        isStartupSplash = true;
+        Serial.println("Woke up from Sleep!");
+      } else if (isStartupSplash) {
+        isStartupSplash = false;
+        currentPage = 0;
+        resetScrollPosition();
+      } else {
+        int totalPages = (int)birthdayMessages.size();
+        if (totalPages > 0) {
+          currentPage = (currentPage + 1) % totalPages;
+          resetScrollPosition();
+        }
+      }
+    }
+  }
+
   lastButtonState = currentButtonState;
 
-  // Render current frame with continuous smooth vertical scrolling animation (~30 FPS)
-  renderPage(currentPage);
+  // --- Render Current Screen State ---
+  if (isSleeping) {
+    delay(100);
+    return;
+  }
+
+  if (isStartupSplash) {
+    renderStartupSplash();
+  } else {
+    renderPage(currentPage);
+  }
 
   delay(25);
 }
