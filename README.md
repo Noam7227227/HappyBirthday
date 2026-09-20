@@ -20,14 +20,18 @@ An interactive, premium birthday greeting display for **ESP32** using a **0.96" 
 ## 🌟 Key Features
 
 1. **Festive Birthday Cake Opening Animation**: On startup or wake-up, the OLED displays an animated birthday cake with flickering candle flames and festive sparkles.
-2. **3-Second Hold Happy Birthday Melody**: Holding the push button for **3 seconds** plays the full "Happy Birthday" song melody on the passive buzzer (`GPIO 26`) with an animated `* MUSIC MODE *` screen!
-3. **Push-Button Navigation**:
-   - **Short Click**: Switches to the next Hebrew blessing.
+2. **3-Second Hold Happy Birthday Melody**: Holding the push button for **3 seconds** plays a short fanfare followed by the full "Happy Birthday" song melody on the passive buzzer (`GPIO 26`) with an animated `* MUSIC MODE *` screen!
+3. **Audio Interactive Feedback**:
+   - **Short Click Chime**: Plays a quick, cheerful 2-note ascending chime when switching blessings.
+   - **Wake-up Chime**: Plays a 3-note ascending melody when waking up from sleep.
+   - **Long-Press Fanfare**: Triggers a fanfare sound right when the 3-second hold is recognized.
+4. **Push-Button Navigation**:
+   - **Short Click**: Switches to the next Hebrew blessing with a cheerful chime.
    - **Hold 3 Seconds**: Triggers the Happy Birthday song melody.
-4. **Native Hebrew UTF-8 & RTL Engine**: Uses the `U8g2` library (`u8g2_font_cu12_t_hebrew`) combined with a custom multi-byte UTF-8 parser (`fixHebrewRTL`) to render Hebrew correctly Right-to-Left on Left-to-Right OLED screens.
-5. **Smooth Vertical Scrolling**: Long multi-line blessings automatically wrap and smoothly scroll vertically with pause timers at the top and bottom.
-6. **100% Dynamic Page Scaling**: Dynamically loads `.txt` files from `data/Blessings/`. Whether you have 3, 6, 10, or more blessings, **no code changes are needed**! Page indicator dots adjust automatically.
-7. **Auto-Sleep Desk Companion**: Enters power-saving sleep mode after **3 minutes of inactivity** (showing a cozy `לילה טוב` message). Pressing the button instantly wakes the device up.
+5. **Native Hebrew UTF-8 & RTL Engine**: Uses the `U8g2` library (`u8g2_font_cu12_t_hebrew`) combined with a custom multi-byte UTF-8 parser (`fixHebrewRTL`) to render Hebrew correctly Right-to-Left on Left-to-Right OLED screens.
+6. **Smooth Vertical Scrolling**: Long multi-line blessings automatically wrap and smoothly scroll vertically with pause timers at the top and bottom.
+7. **100% Dynamic Page Scaling**: Dynamically loads `.txt` files from `data/Blessings/`. Whether you have 3, 6, 10, or more blessings, **no code changes are needed**! Page indicator dots adjust automatically.
+8. **Auto-Sleep Desk Companion**: Enters power-saving sleep mode after **3 minutes of inactivity** (showing a cozy `לילה טוב` message). Pressing the button instantly plays a wake-up chime and revives the display.
 
 ---
 

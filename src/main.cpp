@@ -55,6 +55,7 @@
 #define NOTE_E5 659
 #define NOTE_F5 698
 #define NOTE_G5 784
+#define NOTE_C6 1047
 
 // --- U8g2 OLED Initialization (Hardware I2C) ---
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/U8X8_PIN_NONE);
@@ -183,6 +184,49 @@ void playHappyBirthdayMelody() {
     delay(pauseBetweenNotes);
     noTone(BUZZER_PIN);
   }
+#endif
+}
+
+/**
+ * @brief Plays a short cheerful click sound on button press
+ */
+void playClickSound() {
+#ifdef BUZZER_PIN
+  tone(BUZZER_PIN, NOTE_C5, 30);
+  delay(35);
+  tone(BUZZER_PIN, NOTE_E5, 45);
+  delay(50);
+  noTone(BUZZER_PIN);
+#endif
+}
+
+/**
+ * @brief Plays a cheerful wake up chime
+ */
+void playWakeupChime() {
+#ifdef BUZZER_PIN
+  tone(BUZZER_PIN, NOTE_E5, 50);
+  delay(60);
+  tone(BUZZER_PIN, NOTE_G5, 50);
+  delay(60);
+  tone(BUZZER_PIN, NOTE_C6, 80);
+  delay(90);
+  noTone(BUZZER_PIN);
+#endif
+}
+
+/**
+ * @brief Plays a short fanfare before the long-press melody
+ */
+void playLongPressStartChime() {
+#ifdef BUZZER_PIN
+  tone(BUZZER_PIN, NOTE_C5, 60);
+  delay(70);
+  tone(BUZZER_PIN, NOTE_E5, 60);
+  delay(70);
+  tone(BUZZER_PIN, NOTE_G5, 100);
+  delay(110);
+  noTone(BUZZER_PIN);
 #endif
 }
 
@@ -545,6 +589,7 @@ void loop() {
         u8g2.setPowerSave(0);
       }
 
+      playLongPressStartChime();
       playHappyBirthdayMelody();
 
       lastActivityTime = millis();
@@ -563,16 +608,19 @@ void loop() {
         isSleeping = false;
         u8g2.setPowerSave(0);
         isStartupSplash = true;
+        playWakeupChime();
         Serial.println("Woke up from Sleep!");
       } else if (isStartupSplash) {
         isStartupSplash = false;
         currentPage = 0;
         resetScrollPosition();
+        playClickSound();
       } else {
         int totalPages = (int)birthdayMessages.size();
         if (totalPages > 0) {
           currentPage = (currentPage + 1) % totalPages;
           resetScrollPosition();
+          playClickSound();
         }
       }
     }
