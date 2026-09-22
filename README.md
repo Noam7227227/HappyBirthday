@@ -6,6 +6,8 @@ An interactive, premium birthday greeting display for **ESP32** using a **0.96" 
 
 ## 🔌 Hardware Connections
 
+### Pinout Table
+
 | Component | ESP32 Pin | Function | Wiring Details |
 |---|---|---|---|
 | **Push Button** | `GPIO 25` | Page Toggle / 3s Melody Hold / Wake Input | Terminal 1 to GPIO 25, Terminal 2 to GND (Internal Pull-Up) |
@@ -14,6 +16,34 @@ An interactive, premium birthday greeting display for **ESP32** using a **0.96" 
 | **SSD1306 OLED** | `GPIO 33` | SCL (I2C Clock) | Clock Line |
 | **VCC** | `3.3V` / `5V` | Power Supply | Power Line |
 | **GND** | `GND` | Common Ground | Ground Line |
+
+### Visual Wiring Diagram (ASCII)
+
+```text
+                     +-------------------------------------------------+
+                     |                 ESP32 Board                     |
+                     |                                                 |
+                     |  [3.3V]  [GND]  [IO25]   [IO26]  [IO27]  [IO33] |
+                     +---|--------|------|--------|-------|-------|----+
+                         |        |      |        |       |       |
+                         |        |      |        |       |       +------> SCL (OLED Pin 4)
+                         |        |      |        |       +--------------> SDA (OLED Pin 3)
+                         |        |      |        +----------------------> (+) Buzzer Positive
+                         |        |      +-------------------------------> Terminal 1 (Push Button)
+                         |        |
+                         |        +--------------------+-------------------+
+                         |                             |                   |
+                         v                             v                   v
+                 +---------------+             +---------------+   +---------------+
+                 |  SSD1306 OLED |             |  Push Button  |   | Passive Buzzer|
+                 |  (0.96" I2C)  |             |  (Tactile)    |   | (Piezo)       |
+                 +---------------+             +---------------+   +---------------+
+                 | Pin 1: GND    |<-- GND      | Pin 1: GPIO 25|   | (+): GPIO 26  |
+                 | Pin 2: VCC    |<-- 3.3V     | Pin 2: GND    |<--| (-): GND      |
+                 | Pin 3: SDA    |<-- GPIO 27  +---------------+   +---------------+
+                 | Pin 4: SCL    |<-- GPIO 33
+                 +---------------+
+```
 
 ---
 
