@@ -1,24 +1,26 @@
 /*
  * ESP32 Hebrew Birthday Message Display - Premium Gift Edition 🎁
  *
- * Hardware Wiring:
+ * Hardware Wiring (Safe Non-Strapping Pins):
  * -------------------------------------------------------------
  * Component          ESP32 Pin       Description
  * -------------------------------------------------------------
- * Push Button        GPIO 25         Toggle page / Hold 3s for Melody (Terminal 2 to GND)
- * Passive Buzzer     GPIO 26         Plays Happy Birthday Melody (Positive to GPIO 26, Negative to GND)
- * SSD1306 OLED SDA   GPIO 27         I2C Data Line
- * SSD1306 OLED SCL   GPIO 33         I2C Clock Line
- * VCC                3.3V / 5V       Power Supply
- * GND                GND             Common Ground
+ * Push Button        GPIO 0 (BOOT)   Onboard BOOT Button (No external wiring
+ * required!) SSD1306 OLED VCC   3.3V / VIN      Power Line
+ * SSD1306 OLED GND   GND             Common Ground
+ * SSD1306 OLED SDA   GPIO 14       Hardware I2C Data Line
+ * SSD1306 OLED SCL   GPIO 13         Hardware I2C Clock Line
+ * Passive Buzzer     GPIO 4 (D4)     Plays Happy Birthday Melody (Positive to
+ * D4, Negative to GND)
  * -------------------------------------------------------------
  *
  * Features:
- * - Hold Push Button for 3 seconds to play the Happy Birthday Song Melody!
+ * - Hold BOOT Button for 3 seconds to play the Happy Birthday Song Melody!
  * - Short press toggles to the next Hebrew blessing with a cheerful audio chime
  * - Festive Opening Splash Animation with Birthday Cake & Sparkles
  * - Smooth Vertical Scrolling Engine for long Hebrew blessings
- * - Auto-Sleep Mode (Desk Companion): Dim & Sleep after 3 min of inactivity with Wakeup Chime
+ * - Auto-Sleep Mode (Desk Companion): Dim & Sleep after 3 min of inactivity
+ * with Wakeup Chime
  */
 
 #include <Arduino.h>
@@ -29,10 +31,10 @@
 #include <vector>
 
 // --- Pin Definitions ---
-#define BUTTON_PIN 25
-#define BUZZER_PIN 26 // Passive Buzzer connected to GPIO 26
-#define OLED_SDA_PIN 27
-#define OLED_SCL_PIN 33
+#define BUTTON_PIN 0    // Onboard BOOT Button
+#define OLED_SDA_PIN 14 // Hardware I2C SDA
+#define OLED_SCL_PIN 13 // Hardware I2C SCL
+#define BUZZER_PIN 4    // Passive Buzzer connected to GPIO 4 (Safe Pin!)
 
 // --- Scroll Speed & Timing Configuration ---
 #define SCROLL_SPEED 0.9f    // Scrolling speed in pixels/frame
@@ -40,7 +42,8 @@
 #define PAUSE_BOTTOM_MS 2800 // Pause at bottom of blessing (ms)
 #define DEBOUNCE_DELAY_MS 50 // Button debounce (ms)
 #define LONG_PRESS_MS 3000   // Hold button for 3 seconds to trigger melody
-#define AUTO_SLEEP_TIMEOUT_MS (3 * 60 * 1000) // 3 minutes of inactivity -> Sleep Mode
+#define AUTO_SLEEP_TIMEOUT_MS                                                  \
+  (3 * 60 * 1000) // 3 minutes of inactivity -> Sleep Mode
 
 // --- Musical Notes for Happy Birthday Song ---
 #define NOTE_C4 262

@@ -10,12 +10,12 @@ An interactive, premium birthday greeting display for **ESP32** using a **0.96" 
 
 | Component | ESP32 Pin | Function | Wiring Details |
 |---|---|---|---|
-| **Push Button** | `GPIO 25` | Page Toggle / 3s Melody Hold / Wake Input | Terminal 1 to GPIO 25, Terminal 2 to GND (Internal Pull-Up) |
-| **Passive Buzzer** | `GPIO 26` | Melody Audio Line | Positive Pin (+) to GPIO 26, Negative Pin (-) to GND |
-| **SSD1306 OLED** | `GPIO 27` | SDA (I2C Data) | Data Line |
-| **SSD1306 OLED** | `GPIO 33` | SCL (I2C Clock) | Clock Line |
-| **VCC** | `3.3V` / `5V` | Power Supply | Power Line |
-| **GND** | `GND` | Common Ground | Ground Line |
+| **BOOT Button** | `GPIO 0` | Page Toggle / 3s Melody Hold / Wake Input | Built-in on ESP32 board (**Zero external wiring!**) |
+| **SSD1306 OLED** | `GPIO 14` (`D14`) | SDA (I2C Data) | Connected to OLED `SDA` |
+| **SSD1306 OLED** | `GPIO 13` (`D13`) | SCL (I2C Clock) | Connected to OLED `SCL` |
+| **Passive Buzzer** | `GPIO 4` (`D4`) | Melody Audio Line | Positive Pin (+) to `D4`, Negative Pin (-) to `GND` |
+| **VCC** | `VIN` / `3.3V` | Power Supply | Connected to OLED `VCC` |
+| **GND** | `GND` | Common Ground | Common Ground for OLED `GND` & Buzzer `(-)` |
 
 ### Visual Wiring Diagram (ASCII)
 
@@ -23,25 +23,26 @@ An interactive, premium birthday greeting display for **ESP32** using a **0.96" 
                      +-------------------------------------------------+
                      |                 ESP32 Board                     |
                      |                                                 |
-                     |  [3.3V]  [GND]  [IO25]   [IO26]  [IO27]  [IO33] |
-                     +---|--------|------|--------|-------|-------|----+
-                         |        |      |        |       |       |
-                         |        |      |        |       |       +------> SCL (OLED Pin 4)
-                         |        |      |        |       +--------------> SDA (OLED Pin 3)
-                         |        |      |        +----------------------> (+) Buzzer Positive
-                         |        |      +-------------------------------> Terminal 1 (Push Button)
+                     |  [BOOT Button] (Onboard GPIO 0 - No wiring!)    |
+                     |                                                 |
+                     |  [VIN]   [GND]   [D13]    [D14]    [D4]         |
+                     +---|--------|-------|--------|--------|----------+
+                         |        |       |        |        |
+                         |        |       |        |        +------> (+) Buzzer Positive
+                         |        |       |        +---------------> SDA (OLED Pin 3)
+                         |        |       +------------------------> SCL (OLED Pin 4)
                          |        |
-                         |        +--------------------+-------------------+
-                         |                             |                   |
-                         v                             v                   v
-                 +---------------+             +---------------+   +---------------+
-                 |  SSD1306 OLED |             |  Push Button  |   | Passive Buzzer|
-                 |  (0.96" I2C)  |             |  (Tactile)    |   | (Piezo)       |
-                 +---------------+             +---------------+   +---------------+
-                 | Pin 1: GND    |<-- GND      | Pin 1: GPIO 25|   | (+): GPIO 26  |
-                 | Pin 2: VCC    |<-- 3.3V     | Pin 2: GND    |<--| (-): GND      |
-                 | Pin 3: SDA    |<-- GPIO 27  +---------------+   +---------------+
-                 | Pin 4: SCL    |<-- GPIO 33
+                         |        +--------------------+
+                         |                             |
+                         v                             v
+                 +---------------+             +---------------+
+                 |  SSD1306 OLED |             | Passive Buzzer|
+                 |  (0.96" I2C)  |             | (Piezo)       |
+                 +---------------+             +---------------+
+                 | Pin 1: GND    |<-- GND      | (+): GPIO 4   |
+                 | Pin 2: VCC    |<-- VIN/3.3V | (-): GND      |<-- GND
+                 | Pin 3: SDA    |<-- D14 (14) +---------------+
+                 | Pin 4: SCL    |<-- D13 (13)
                  +---------------+
 ```
 
